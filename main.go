@@ -96,6 +96,10 @@ func main() {
 		case "reload":
 			chatGPT.ResetConversation(updateChatID)
 			text = "Started a new conversation. Enjoy!"
+		case "pay_lava":
+                        text = "Вы выбрали оплату через Lava. Следуйте инструкциям."
+                case "pay_ukraine":
+                        text = "Вы выбрали оплату через Украину. Следуйте инструкциям."
 		default:
 			text = "Unknown command. Send /help to see a list of commands."
 		}
