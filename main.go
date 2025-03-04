@@ -3,16 +3,21 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+	"strings"
 
 	"github.com/m1guelpf/chatgpt-telegram/src/chatgpt"
 	"github.com/m1guelpf/chatgpt-telegram/src/config"
 	"github.com/m1guelpf/chatgpt-telegram/src/session"
 	"github.com/m1guelpf/chatgpt-telegram/src/tgbot"
 )
+
+const LAVA_API_KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1aWQiOiJiOWJjOWJmYi02MzhkLTdlZGMtYzgyOS1mYjUwYmQwMmIzOTUiLCJ0aWQiOiI4YmQ2YTdiYi1hZTRmLTE2NWItZGIyZS05MzdhMDc2NDJkZDcifQ.T-Jtx-SPHzwEr5lYLrkfQrpPi-I4DkEikSy_bmQB_Yk"
 
 func main() {
 	persistentConfig, err := config.LoadOrCreatePersistentConfig()
@@ -25,7 +30,6 @@ func main() {
 		if err != nil {
 			log.Fatalf("Couldn't get OpenAI session: %v", err)
 		}
-
 		if err = persistentConfig.SetSessionToken(token); err != nil {
 			log.Fatalf("Couldn't save OpenAI session: %v", err)
 		}
@@ -75,37 +79,45 @@ func main() {
 			continue
 		}
 
-		if !update.Message.IsCommand() {
-			bot.SendTyping(updateChatID)
-
-			feed, err := chatGPT.SendMessage(updateText, updateChatID)
-			if err != nil {
-				bot.Send(updateChatID, updateMessageID, fmt.Sprintf("Error: %v", err))
-			} else {
-				bot.SendAsLiveOutput(updateChatID, updateMessageID, feed)
-			}
-			continue
-		}
-
 		var text string
 		switch update.Message.Command() {
 		case "help":
-			text = "Send a message to start talking with ChatGPT. You can use /reload at any point to clear the conversation history and start from scratch (don't worry, it won't delete the Telegram messages)."
+			text = "Send a message to start talking with ChatGPT. Use /reload to reset conversation history."
 		case "start":
-			text = "Send a message to start talking with ChatGPT. You can use /reload at any point to clear the conversation history and start from scratch (don't worry, it won't delete the Telegram messages)."
+			text = "Welcome! Use /pay_lava to initiate payment."
 		case "reload":
 			chatGPT.ResetConversation(updateChatID)
-			text = "Started a new conversation. Enjoy!"
+			text = "Started a new conversation."
 		case "pay_lava":
-                        text = "Вы выбрали оплату через Lava. Следуйте инструкциям."
-                case "pay_ukraine":
-                        text = "Вы выбрали оплату через Украину. Следуйте инструкциям."
+			paymentLink := generateLavaPaymentLink(updateUserID)
+			text = fmt.Sprintf("Оплатите по ссылке: %s", paymentLink)
+		case "check_payment":
+			if checkPaymentStatus(updateUserID) {
+				text = "Оплата подтверждена! Ваш код доступа: 322455"
+			} else {
+				text = "Оплата не найдена. Попробуйте ещё раз позже."
+			}
 		default:
-			text = "Unknown command. Send /help to see a list of commands."
+			text = "Unknown command. Send /help to see available commands."
 		}
 
 		if _, err := bot.Send(updateChatID, updateMessageID, text); err != nil {
 			log.Printf("Error sending message: %v", err)
 		}
 	}
+}
+
+func generateLavaPaymentLink(userID int) string {
+	return fmt.Sprintf("https://api.lava.ru/pay?amount=100&key=%s&user_id=%d", LAVA_API_KEY, userID)
+}
+
+func checkPaymentStatus(userID int) bool {
+	response, err := http.Get(fmt.Sprintf("https://api.lava.ru/status?user_id=%d&key=%s", userID, LAVA_API_KEY))
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+
+	body, _ := ioutil.ReadAll(response.Body)
+	return strings.Contains(string(body), "paid")
 }
