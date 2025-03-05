@@ -68,9 +68,9 @@ func main() {
 
 		updateChatID := update.Message.Chat.ID
 		updateMessageID := update.Message.MessageID
-		updateUserID := int(update.Message.From.ID) // Приведение к int
+		updateUserID := update.Message.From.ID // int64
 
-		if len(envConfig.TelegramID) != 0 && !envConfig.HasTelegramID(updateUserID) {
+		if len(envConfig.TelegramID) != 0 && !envConfig.HasTelegramID(int(updateUserID)) {
 			log.Printf("User %d is not allowed to use this bot", updateUserID)
 			bot.Send(updateChatID, updateMessageID, "You are not authorized to use this bot.")
 			continue
@@ -104,11 +104,11 @@ func main() {
 	}
 }
 
-func generateLavaPaymentLink(userID int) string {
+func generateLavaPaymentLink(userID int64) string {
 	return fmt.Sprintf("https://api.lava.ru/pay?amount=100&key=%s&user_id=%d", LAVA_API_KEY, userID)
 }
 
-func checkPaymentStatus(userID int) bool {
+func checkPaymentStatus(userID int64) bool {
 	response, err := http.Get(fmt.Sprintf("https://api.lava.ru/status?user_id=%d&key=%s", userID, LAVA_API_KEY))
 	if err != nil {
 		return false
