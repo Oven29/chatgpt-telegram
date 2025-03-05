@@ -70,14 +70,14 @@ func main() {
 			updateText      = update.Message.Text
 			updateChatID    = update.Message.Chat.ID
 			updateMessageID = update.Message.MessageID
-			updateUserID    = update.Message.From.ID
+			updateUserID    = int(update.Message.From.ID)
 		)
 
-		if len(envConfig.TelegramID) != 0 && !envConfig.HasTelegramID(int(updateUserID)) {
-         log.Printf("User %d is not allowed to use this bot", updateUserID)
-         bot.Send(updateChatID, updateMessageID, "You are not authorized to use this bot.")
-         continue
-                }
+		if len(envConfig.TelegramID) != 0 && !envConfig.HasTelegramID(updateUserID) {
+			log.Printf("User %d is not allowed to use this bot", updateUserID)
+			bot.Send(updateChatID, updateMessageID, "You are not authorized to use this bot.")
+			continue
+		}
 
 		var text string
 		switch update.Message.Command() {
