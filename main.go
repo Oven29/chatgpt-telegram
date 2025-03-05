@@ -69,7 +69,7 @@ func main() {
 		var (
 			updateChatID    = update.Message.Chat.ID
 			updateMessageID = update.Message.MessageID
-			updateUserID    = int(update.Message.From.ID) // Приведение к int
+			updateUserID    = int64(update.Message.From.ID) // Исправлено! Теперь int64
 		)
 
 		if len(envConfig.TelegramID) != 0 && !envConfig.HasTelegramID(updateUserID) {
@@ -106,11 +106,11 @@ func main() {
 	}
 }
 
-func generateLavaPaymentLink(userID int) string {
+func generateLavaPaymentLink(userID int64) string { // Тут тоже исправлено на int64
 	return fmt.Sprintf("https://api.lava.ru/pay?amount=100&key=%s&user_id=%d", LAVA_API_KEY, userID)
 }
 
-func checkPaymentStatus(userID int) bool {
+func checkPaymentStatus(userID int64) bool { // Тут тоже исправлено на int64
 	response, err := http.Get(fmt.Sprintf("https://api.lava.ru/status?user_id=%d&key=%s", userID, LAVA_API_KEY))
 	if err != nil {
 		return false
