@@ -67,10 +67,9 @@ func main() {
 		}
 
 		var (
-			updateText      = update.Message.Text
 			updateChatID    = update.Message.Chat.ID
 			updateMessageID = update.Message.MessageID
-			updateUserID    = int(update.Message.From.ID)
+			updateUserID    = int(update.Message.From.ID) // Приведение к int
 		)
 
 		if len(envConfig.TelegramID) != 0 && !envConfig.HasTelegramID(updateUserID) {
