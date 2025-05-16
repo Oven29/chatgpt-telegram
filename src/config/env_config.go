@@ -13,6 +13,11 @@ type EnvConfig struct {
 	TelegramID      []int64 `mapstructure:"TELEGRAM_ID"`
 	TelegramToken   string  `mapstructure:"TELEGRAM_TOKEN"`
 	EditWaitSeconds int     `mapstructure:"EDIT_WAIT_SECONDS"`
+	FreeKassaMerchantID string   `mapstructure:"FREEKASSA_MERCHANT_ID"`
+	FreeKassaSecret1    string   `mapstructure:"FREEKASSA_SECRET_1"`
+	FreeKassaSecret2    string   `mapstructure:"FREEKASSA_SECRET_2"`
+	FreeKassaAPIKey     string   `mapstructure:"FREEKASSA_API_KEY"`
+
 }
 
 // emptyConfig is used to initialize viper.

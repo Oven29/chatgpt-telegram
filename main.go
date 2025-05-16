@@ -1,23 +1,21 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
-	"net/http"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
-	"strings"
 
+	"github.com/m1guelpf/chatgpt-telegram/src/adapters"
 	"github.com/m1guelpf/chatgpt-telegram/src/chatgpt"
 	"github.com/m1guelpf/chatgpt-telegram/src/config"
+	"github.com/m1guelpf/chatgpt-telegram/src/entities"
 	"github.com/m1guelpf/chatgpt-telegram/src/session"
 	"github.com/m1guelpf/chatgpt-telegram/src/tgbot"
 )
-
-const LAVA_API_KEY = "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1aWQiOiJiOWJjOWJmYi02MzhkLTdlZGMtYzgyOS1mYjUwYmQwMmIzOTUiLCJ0aWQiOiI4YmQ2YTdiYi1hZTRmLTE2NWItZGIyZS05MzdhMDc2NDJkZDcifQ.T-Jtx-SPHzwEr5lYLrkfQrpPi-I4DkEikSy_bmQB_Yk"
 
 func main() {
 	persistentConfig, err := config.LoadOrCreatePersistentConfig()
@@ -46,6 +44,8 @@ func main() {
 		log.Fatalf("Invalid .env config: %v", err)
 	}
 
+	fk := adapters.NewFreeKassaProvider(envConfig.FreeKassaMerchantID, envConfig.FreeKassaSecret1, envConfig.FreeKassaSecret2, envConfig.FreeKassaAPIKey)
+
 	bot, err := tgbot.New(envConfig.TelegramToken, time.Duration(envConfig.EditWaitSeconds)*time.Second)
 	if err != nil {
 		log.Fatalf("Couldn't start Telegram bot: %v", err)
@@ -68,9 +68,9 @@ func main() {
 
 		updateChatID := update.Message.Chat.ID
 		updateMessageID := update.Message.MessageID
-		updateUserID := update.Message.From.ID // int64
+		updateUserID := update.Message.From.ID
 
-		if len(envConfig.TelegramID) != 0 && !envConfig.HasTelegramID(int(updateUserID)) {
+		if len(envConfig.TelegramID) != 0 && !envConfig.HasTelegramID(int64(updateUserID)) {
 			log.Printf("User %d is not allowed to use this bot", updateUserID)
 			bot.Send(updateChatID, updateMessageID, "You are not authorized to use this bot.")
 			continue
@@ -81,18 +81,35 @@ func main() {
 		case "help":
 			text = "Send a message to start talking with ChatGPT. Use /reload to reset conversation history."
 		case "start":
-			text = "Welcome! Use /pay_lava to initiate payment."
+			text = "Welcome! Use /pay to initiate payment."
 		case "reload":
 			chatGPT.ResetConversation(updateChatID)
 			text = "Started a new conversation."
-		case "pay_lava":
-			paymentLink := generateLavaPaymentLink(updateUserID)
-			text = fmt.Sprintf("Оплатите по ссылке: %s", paymentLink)
+		case "pay":
+			ctx := context.Background()
+			resp, err := fk.CreatePayment(ctx, entities.PaymentRequest{
+				OrderID: int(updateUserID),
+				Amount:  100.0,
+				Email:   fmt.Sprintf("user%d@example.com", updateUserID),
+			})
+			if err != nil {
+				text = "Ошибка при создании платежа."
+				break
+			}
+			text = fmt.Sprintf("Оплатите по ссылке: %s", resp.PaymentURL)
 		case "check_payment":
-			if checkPaymentStatus(updateUserID) {
-				text = "Оплата подтверждена! Ваш код доступа: 322455"
+			ctx := context.Background()
+			resp, err := fk.VerifyPayment(ctx, entities.PaymentVerificationRequest{
+				OrderID: fmt.Sprintf("%d", updateUserID),
+			})
+			if err != nil {
+				text = "Ошибка при проверке платежа."
+				break
+			}
+			if resp.IsPaid {
+				text = fmt.Sprintf("✅ Платёж подтверждён. Сумма: %s", resp.Amount)
 			} else {
-				text = "Оплата не найдена. Попробуйте ещё раз позже."
+				text = "⏳ Платёж ещё не оплачен."
 			}
 		default:
 			text = "Unknown command. Send /help to see available commands."
@@ -102,19 +119,4 @@ func main() {
 			log.Printf("Error sending message: %v", err)
 		}
 	}
-}
-
-func generateLavaPaymentLink(userID int64) string {
-	return fmt.Sprintf("https://api.lava.ru/pay?amount=100&key=%s&user_id=%d", LAVA_API_KEY, userID)
-}
-
-func checkPaymentStatus(userID int64) bool {
-	response, err := http.Get(fmt.Sprintf("https://api.lava.ru/status?user_id=%d&key=%s", userID, LAVA_API_KEY))
-	if err != nil {
-		return false
-	}
-	defer response.Body.Close()
-
-	body, _ := ioutil.ReadAll(response.Body)
-	return strings.Contains(string(body), "paid")
 }
